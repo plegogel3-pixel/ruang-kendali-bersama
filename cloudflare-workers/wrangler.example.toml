@@ -1,0 +1,9 @@
+name = "ruang-kendali-pairing"
+main = "src/index.ts"
+compatibility_date = "2026-11-01"
+[[d1_databases]]
+binding = "PAIR_DB"
+database_name = "ruang-kendali-pairing"
+database_id = "SET_DATABASE_ID"
+[vars]
+FIREBASE_PROJECT_ID = "SET_FIREBASE_PROJECT_ID"
