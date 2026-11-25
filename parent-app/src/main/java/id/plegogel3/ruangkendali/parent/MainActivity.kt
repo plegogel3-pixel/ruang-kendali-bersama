@@ -30,6 +30,7 @@ class MainActivity : ComponentActivity() {
    Column(Modifier.fillMaxSize().padding(24.dp),verticalArrangement=Arrangement.spacedBy(14.dp)){
     Text("Ruang Kendali Bersama",style=MaterialTheme.typography.headlineMedium)
     Text("Parent • Hubungkan perangkat",style=MaterialTheme.typography.titleMedium)
+    if(FirebaseApp.getApps(this@MainActivity).isNotEmpty()) Button(onClick={FirebaseAuth.getInstance().signInAnonymously().addOnSuccessListener{status="Sesi Firebase aktif. Masukkan kode Child."}.addOnFailureListener{status="Login gagal: ${it.message}"}}){Text("Mulai sesi Firebase (uji)")}
     if(FirebaseApp.getApps(this@MainActivity).isEmpty())Text("Firebase belum dikonfigurasi. Atur API key, App ID, Project ID dan aktifkan Anonymous Authentication.")
     OutlinedTextField(value=code,onValueChange={code=it.filter(Char::isDigit).take(6)},label={Text("Kode pairing 6 digit")},singleLine=true)
     Button(enabled=code.length==6&&!busy&&FirebaseApp.getApps(this@MainActivity).isNotEmpty(),onClick={scope.launch{
