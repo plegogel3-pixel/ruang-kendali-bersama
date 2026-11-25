@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.google.firebase.FirebaseApp
 import com.google.firebase.FirebaseOptions
@@ -25,27 +26,43 @@ class MainActivity : ComponentActivity() {
  }
  override fun onCreate(savedInstanceState:Bundle?){super.onCreate(savedInstanceState);setupFirebase()
   setContent { MaterialTheme {
-   var code by remember{mutableStateOf("")};var status by remember{mutableStateOf("Masuk akun Firebase lalu masukkan kode dari perangkat Child.")};var busy by remember{mutableStateOf(false)}
+   val auth=remember { if(FirebaseApp.getApps(this@MainActivity).isNotEmpty()) FirebaseAuth.getInstance() else null }
+   var signedIn by remember { mutableStateOf(auth?.currentUser!=null) }
+   var register by remember { mutableStateOf(false) }
+   var email by remember{mutableStateOf("")};var password by remember{mutableStateOf("")}
+   var code by remember{mutableStateOf("")};var status by remember{mutableStateOf("Buat akun atau login menggunakan email dan sandi.")};var busy by remember{mutableStateOf(false)}
    val scope=rememberCoroutineScope()
    Column(Modifier.fillMaxSize().padding(24.dp),verticalArrangement=Arrangement.spacedBy(14.dp)){
     Text("Ruang Kendali Bersama",style=MaterialTheme.typography.headlineMedium)
-    Text("Parent • Hubungkan perangkat",style=MaterialTheme.typography.titleMedium)
-    if(FirebaseApp.getApps(this@MainActivity).isNotEmpty()) Button(onClick={FirebaseAuth.getInstance().signInAnonymously().addOnSuccessListener{status="Sesi Firebase aktif. Masukkan kode Child."}.addOnFailureListener{status="Login gagal: ${it.message}"}}){Text("Mulai sesi Firebase (uji)")}
-    if(FirebaseApp.getApps(this@MainActivity).isEmpty())Text("Firebase belum dikonfigurasi. Atur API key, App ID, Project ID dan aktifkan Anonymous Authentication.")
-    OutlinedTextField(value=code,onValueChange={code=it.filter(Char::isDigit).take(6)},label={Text("Kode pairing 6 digit")},singleLine=true)
-    Button(enabled=code.length==6&&!busy&&FirebaseApp.getApps(this@MainActivity).isNotEmpty(),onClick={scope.launch{
-     busy=true
-     try{val user=FirebaseAuth.getInstance().currentUser
-      if(user==null){status="Belum login. Autentikasi Firebase perlu disiapkan.";return@launch}
-      val token=user.getIdToken(false).awaitToken()
-      val result=withContext(Dispatchers.IO){val c=URL(BuildConfig.WORKER_BASE_URL.trimEnd('/')+"/pair/redeem").openConnection() as HttpURLConnection
-       try{c.requestMethod="POST";c.connectTimeout=12000;c.readTimeout=12000;c.doOutput=true;c.setRequestProperty("Authorization","Bearer $token");c.setRequestProperty("Content-Type","application/json");c.outputStream.use{it.write(JSONObject().put("code",code).toString().toByteArray())};val s=if(c.responseCode in 200..299)c.inputStream else c.errorStream;val txt=s.bufferedReader().use{it.readText()};if(c.responseCode !in 200..299)throw IllegalStateException(JSONObject(txt).optString("error","HTTP ${c.responseCode}"));JSONObject(txt)}finally{c.disconnect()}}
-      status="Pairing berhasil untuk perangkat ${result.optString("deviceId")}."
-      code=""
-     }catch(e:Exception){status="Pairing gagal: ${e.message ?: "periksa koneksi dan Worker"}"}finally{busy=false}
-    }}){Text(if(busy)"Memproses…" else "Hubungkan perangkat")}
+    Text("Parent • Akun dan hubungkan perangkat",style=MaterialTheme.typography.titleMedium)
+    if(auth==null) Text("Firebase belum dikonfigurasi. Periksa Firebase API key, App ID, Project ID.")
+    else if(!signedIn) {
+     OutlinedTextField(value=email,onValueChange={email=it.trim()},label={Text("Email")},singleLine=true)
+     OutlinedTextField(value=password,onValueChange={password=it},label={Text("Sandi (minimal 6 karakter)")},singleLine=true,visualTransformation=PasswordVisualTransformation())
+     Button(enabled=email.contains("@")&&password.length>=6&&!busy,onClick={
+      busy=true;status="Memproses akun…"
+      val task=if(register)auth.createUserWithEmailAndPassword(email,password) else auth.signInWithEmailAndPassword(email,password)
+      task.addOnSuccessListener{signedIn=true;status="Login berhasil. Sekarang masukkan kode Child.";password=""}
+       .addOnFailureListener{status=if(register)"Pendaftaran gagal: ${it.localizedMessage}" else "Login gagal: ${it.localizedMessage}"}
+       .addOnCompleteListener{busy=false}
+     }){Text(if(busy)"Memproses…" else if(register)"Daftar akun" else "Login")}
+     TextButton(onClick={register=!register;status=if(register)"Masukkan email dan sandi untuk membuat akun." else "Masuk dengan akun yang sudah dibuat."}){Text(if(register)"Sudah punya akun? Login" else "Belum punya akun? Daftar")}
+    } else {
+     Text("Login sebagai: ${auth.currentUser?.email ?: "akun Firebase"}")
+     TextButton(onClick={auth.signOut();signedIn=false;status="Anda sudah logout."}){Text("Logout")}
+     OutlinedTextField(value=code,onValueChange={code=it.filter(Char::isDigit).take(6)},label={Text("Kode pairing 6 digit")},singleLine=true)
+     Button(enabled=code.length==6&&!busy,onClick={scope.launch{
+      busy=true
+      try{val user=auth.currentUser ?: throw IllegalStateException("Silakan login kembali")
+       val token=user.getIdToken(false).awaitToken()
+       val result=withContext(Dispatchers.IO){val c=URL(BuildConfig.WORKER_BASE_URL.trimEnd('/')+"/pair/redeem").openConnection() as HttpURLConnection
+        try{c.requestMethod="POST";c.connectTimeout=12000;c.readTimeout=12000;c.doOutput=true;c.setRequestProperty("Authorization","Bearer $token");c.setRequestProperty("Content-Type","application/json");c.outputStream.use{it.write(JSONObject().put("code",code).toString().toByteArray())};val s=if(c.responseCode in 200..299)c.inputStream else c.errorStream;val txt=s.bufferedReader().use{it.readText()};if(c.responseCode !in 200..299)throw IllegalStateException(JSONObject(txt).optString("error","HTTP ${c.responseCode}"));JSONObject(txt)}finally{c.disconnect()}}
+       status="Pairing berhasil untuk perangkat ${result.optString("deviceId")}.";code=""
+      }catch(e:Exception){status="Pairing gagal: ${e.message ?: "periksa koneksi dan Worker"}"}finally{busy=false}
+     }}){Text(if(busy)"Memproses…" else "Hubungkan perangkat")}
+    }
     Text(status)
-    Text("Kode kedaluwarsa dalam 5 menit dan hanya dapat dipakai sekali. Pastikan perangkat Child dan identitas keluarga benar.",style=MaterialTheme.typography.bodySmall)
+    Text("Gunakan akun sendiri. Jangan bagikan sandi atau kode pairing kepada orang yang tidak dipercaya.",style=MaterialTheme.typography.bodySmall)
    }
   } }
  }
