@@ -55,7 +55,7 @@ class MainActivity : ComponentActivity() {
      OutlinedTextField(value=code,onValueChange={code=it.filter(Char::isDigit).take(6)},label={Text("Kode pairing 6 digit")},singleLine=true)
      Button(enabled=code.length==6&&!busy,onClick={scope.launch{
       busy=true
-      try{val user=auth.currentUser ?: throw IllegalStateException("Silakan login kembali")
+      try{val user=auth?.currentUser ?: throw IllegalStateException("Silakan login kembali")
        val token=user.getIdToken(false).awaitToken()
        val result=withContext(Dispatchers.IO){val c=URL(BuildConfig.WORKER_BASE_URL.trimEnd('/')+"/pair/redeem").openConnection() as HttpURLConnection
         try{c.requestMethod="POST";c.connectTimeout=12000;c.readTimeout=12000;c.doOutput=true;c.setRequestProperty("Authorization","Bearer $token");c.setRequestProperty("Content-Type","application/json");c.outputStream.use{it.write(JSONObject().put("code",code).toString().toByteArray())};val s=if(c.responseCode in 200..299)c.inputStream else c.errorStream;val txt=s.bufferedReader().use{it.readText()};if(c.responseCode !in 200..299)throw IllegalStateException(JSONObject(txt).optString("error","HTTP ${c.responseCode}"));JSONObject(txt)}finally{c.disconnect()}}
