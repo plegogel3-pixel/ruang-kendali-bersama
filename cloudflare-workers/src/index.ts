@@ -15,6 +15,12 @@ export default {async fetch(req:Request,env:Env){
  const uid=await auth(req,env);if(!uid)return reply({error:"unauthorized"},401);
  let body:any;try{body=await req.json();}catch{return reply({error:"invalid_request"},400);}
  const now=Math.floor(Date.now()/1000),path=new URL(req.url).pathname;
+ if(path==="/pair/redeem"){
+  const bucket=Math.floor(now/60);
+  await env.PAIR_DB.prepare("INSERT INTO pairing_rate_limits(uid,bucket,hits) VALUES(?,?,1) ON CONFLICT(uid,bucket) DO UPDATE SET hits=hits+1").bind(uid,bucket).run();
+  const count=await env.PAIR_DB.prepare("SELECT hits FROM pairing_rate_limits WHERE uid=? AND bucket=?").bind(uid,bucket).first<{hits:number}>();
+  if((count?.hits??0)>8)return reply({error:"rate_limited"},429);
+ }
  if(path==="/pair/create"){
   const deviceId=typeof body.deviceId==="string"?body.deviceId:"";if(!/^[A-Za-z0-9_-]{8,128}$/.test(deviceId))return reply({error:"invalid_request"},400);
   const code=code6(),h=await digest(code,env.PAIR_HMAC_KEY);
