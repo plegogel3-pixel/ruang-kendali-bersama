@@ -68,7 +68,7 @@ class MainActivity : ComponentActivity() {
       Button(enabled=!locationBusy,onClick={scope.launch{
        locationBusy=true
        try{
-        val user=auth.currentUser ?: throw IllegalStateException("Silakan login kembali")
+        val user=auth?.currentUser ?: throw IllegalStateException("Silakan login kembali")
         val token=user.getIdToken(false).awaitToken()
         val data=withContext(Dispatchers.IO){
          val c=URL(BuildConfig.WORKER_BASE_URL.trimEnd('/')+"/location/latest").openConnection() as HttpURLConnection
