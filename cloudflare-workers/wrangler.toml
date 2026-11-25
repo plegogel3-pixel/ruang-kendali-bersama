@@ -1,0 +1,11 @@
+name = "rkb"
+main = "src/index.ts"
+compatibility_date = "2026-11-01"
+
+[[d1_databases]]
+binding = "PAIR_DB"
+database_name = "rkb"
+database_id = "c88bb124-b607-4413-a06e-9f41c4e87bb2"
+
+[vars]
+FIREBASE_PROJECT_ID = "ruang-kendali-bersama"
