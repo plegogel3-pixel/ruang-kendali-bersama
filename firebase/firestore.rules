@@ -1,0 +1,9 @@
+rules_version = '2';
+service cloud.firestore {
+ match /databases/{database}/documents {
+  function signedIn() { return request.auth != null; }
+  // Default deny. Add narrow family/device membership rules after schema and
+  // server-owned fields are finalized. Do not open collections to all users.
+  match /{document=**} { allow read, write: if false; }
+ }
+}
