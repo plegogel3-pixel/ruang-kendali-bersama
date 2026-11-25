@@ -88,7 +88,7 @@ export default {
     const now = Math.floor(Date.now() / 1000);
     const bucket = Math.floor(now / 60);
     const path = new URL(req.url).pathname;
-    if (now % 300 === 0) {
+    if (bucket % 5 === 0) {
       await env.PAIR_DB.prepare("DELETE FROM pairing_challenges WHERE expires_at < ?").bind(now - 86400).run();
       await env.PAIR_DB.prepare("DELETE FROM pairing_rate_limits WHERE bucket < ?").bind(bucket - 1440).run();
     }
