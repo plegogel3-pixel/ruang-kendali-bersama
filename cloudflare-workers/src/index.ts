@@ -154,6 +154,42 @@ export default {
       return reply({ deviceId: challenge.device_id, childUid: challenge.child_uid });
     }
 
+    if (path === "/location/update") {
+      const deviceId = typeof body.deviceId === "string" ? body.deviceId : "";
+      const latitude = body.latitude;
+      const longitude = body.longitude;
+      const accuracy = body.accuracy;
+      if (!/^[A-Za-z0-9_-]{8,128}$/.test(deviceId) ||
+          typeof latitude !== "number" || !Number.isFinite(latitude) || latitude < -90 || latitude > 90 ||
+          typeof longitude !== "number" || !Number.isFinite(longitude) || longitude < -180 || longitude > 180 ||
+          (accuracy !== undefined && (typeof accuracy !== "number" || !Number.isFinite(accuracy) || accuracy < 0 || accuracy > 100000))) {
+        return reply({ error: "invalid_request" }, 400);
+      }
+      const owned = await env.PAIR_DB.prepare(
+        "SELECT device_id FROM device_links WHERE device_id=? AND child_uid=? AND revoked_at IS NULL",
+      ).bind(deviceId, uid).first();
+      if (!owned) return reply({ error: "device_not_linked" }, 403);
+      await env.PAIR_DB.prepare(
+        "INSERT INTO latest_locations(device_id,latitude,longitude,accuracy,updated_at) VALUES(?,?,?,?,?) " +
+        "ON CONFLICT(device_id) DO UPDATE SET latitude=excluded.latitude,longitude=excluded.longitude," +
+        "accuracy=excluded.accuracy,updated_at=excluded.updated_at",
+      ).bind(deviceId, latitude, longitude, typeof accuracy === "number" ? accuracy : null, now).run();
+      return reply({ saved: true, updatedAt: now });
+    }
+
+    if (path === "/location/latest") {
+      const deviceId = typeof body.deviceId === "string" ? body.deviceId : "";
+      if (!/^[A-Za-z0-9_-]{8,128}$/.test(deviceId)) return reply({ error: "invalid_request" }, 400);
+      const allowed = await env.PAIR_DB.prepare(
+        "SELECT device_id FROM device_links WHERE device_id=? AND parent_uid=? AND revoked_at IS NULL",
+      ).bind(deviceId, uid).first();
+      if (!allowed) return reply({ error: "device_not_linked" }, 403);
+      const location = await env.PAIR_DB.prepare(
+        "SELECT latitude,longitude,accuracy,updated_at FROM latest_locations WHERE device_id=?",
+      ).bind(deviceId).first<{ latitude: number; longitude: number; accuracy: number | null; updated_at: number }>();
+      return location ? reply(location) : reply({ error: "location_not_available" }, 404);
+    }
+
     if (path === "/pair/revoke") {
       const deviceId = typeof body.deviceId === "string" ? body.deviceId : "";
       const result = await env.PAIR_DB.prepare(
