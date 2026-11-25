@@ -1,0 +1,29 @@
+name: Cloudflare Worker CI
+on:
+  push:
+    branches: [main]
+    paths:
+      - "cloudflare-workers/**"
+      - ".github/workflows/worker-ci.yml"
+  pull_request:
+    paths:
+      - "cloudflare-workers/**"
+      - ".github/workflows/worker-ci.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  typecheck:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: cloudflare-workers
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Install Worker dependencies
+        run: npm install
+      - name: Type-check Worker
+        run: npm run typecheck
