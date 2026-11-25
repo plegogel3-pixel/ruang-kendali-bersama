@@ -38,6 +38,7 @@ class MainActivity : ComponentActivity() {
     Text("Ruang Kendali Bersama",style=MaterialTheme.typography.headlineMedium)
     Text("Child • Pairing perangkat",style=MaterialTheme.typography.titleMedium)
     Text("Kode hanya tampil di perangkat ini, berlaku 5 menit, dan hanya dapat digunakan sekali.")
+    if(FirebaseApp.getApps(this@MainActivity).isNotEmpty()) Button(onClick={FirebaseAuth.getInstance().signInAnonymously().addOnSuccessListener{message="Sesi Firebase aktif. Kode dapat dibuat."}.addOnFailureListener{message="Login gagal: ${it.message}"}}){Text("Mulai sesi Firebase (uji)")}
     if(FirebaseApp.getApps(this@MainActivity).isEmpty()) {
      Text("Firebase belum dikonfigurasi. Isi Firebase API key, App ID, Project ID dan aktifkan Anonymous Authentication di Firebase Console.")
     } else {
