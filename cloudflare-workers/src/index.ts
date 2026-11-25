@@ -125,7 +125,7 @@ export default {
         "UPDATE pairing_challenges SET consumed_at=? " +
         "WHERE code_hash=? AND expires_at>? AND consumed_at IS NULL AND attempts<5",
       ).bind(now, hash, now).run();
-      if (!claim.meta.changes === false || claim.meta.changes === 0) {
+      if ((claim.meta.changes ?? 0) === 0) {
         await env.PAIR_DB.prepare(
           "UPDATE pairing_challenges SET attempts=attempts+1 " +
           "WHERE code_hash=? AND consumed_at IS NULL AND expires_at>?",
@@ -144,12 +144,13 @@ export default {
       if (active) return reply({ error: "device_already_linked" }, 409);
 
       // A previously revoked device may be linked again only after its child creates a fresh code.
-      await env.PAIR_DB.prepare(
+      const link = await env.PAIR_DB.prepare(
         "INSERT INTO device_links(device_id,child_uid,parent_uid,linked_at) VALUES(?,?,?,?) " +
         "ON CONFLICT(device_id) DO UPDATE SET parent_uid=excluded.parent_uid, " +
         "linked_at=excluded.linked_at,revoked_at=NULL " +
         "WHERE device_links.revoked_at IS NOT NULL AND device_links.child_uid=excluded.child_uid",
       ).bind(challenge.device_id, challenge.child_uid, uid, now).run();
+      if ((link.meta.changes ?? 0) === 0) return reply({ error: "device_already_linked" }, 409);
       return reply({ deviceId: challenge.device_id, childUid: challenge.child_uid });
     }
 
