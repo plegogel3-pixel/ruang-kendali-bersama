@@ -1,6 +1,10 @@
 package id.plegogel3.ruangkendali.child
 
 import android.os.Bundle
+import android.Manifest
+import android.content.pm.PackageManager
+import android.location.LocationManager
+import androidx.core.app.ActivityCompat
 import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -32,7 +36,7 @@ class MainActivity : ComponentActivity() {
   val prefs=getSharedPreferences("device",MODE_PRIVATE)
   val deviceId=prefs.getString("id",null) ?: java.util.UUID.randomUUID().toString().replace("-","").also{prefs.edit().putString("id",it).apply()}
   setContent { MaterialTheme {
-   var code by remember { mutableStateOf("") }; var message by remember { mutableStateOf("Masuk akun Firebase, lalu buat kode pairing.") }; var busy by remember { mutableStateOf(false) }
+   var code by remember { mutableStateOf("") }; var message by remember { mutableStateOf("Masuk akun Firebase, lalu buat kode pairing.") }; var busy by remember { mutableStateOf(false) }; var locationBusy by remember { mutableStateOf(false) }
    val scope= rememberCoroutineScope()
    Column(Modifier.fillMaxSize().padding(24.dp),verticalArrangement=Arrangement.spacedBy(14.dp)) {
     Text("Ruang Kendali Bersama",style=MaterialTheme.typography.headlineMedium)
@@ -53,6 +57,25 @@ class MainActivity : ComponentActivity() {
       }catch(e:Exception){message="Gagal membuat kode: ${e.message ?: "periksa koneksi dan Worker"}"}finally{busy=false}
      }}) { Text(if(busy)"Memproses…" else "Buat kode 6 digit") }
     }
+    Button(enabled=!locationBusy,onClick={
+     val fine=ActivityCompat.checkSelfPermission(this@MainActivity,Manifest.permission.ACCESS_FINE_LOCATION)==PackageManager.PERMISSION_GRANTED
+     val coarse=ActivityCompat.checkSelfPermission(this@MainActivity,Manifest.permission.ACCESS_COARSE_LOCATION)==PackageManager.PERMISSION_GRANTED
+     if(!fine&&!coarse){ActivityCompat.requestPermissions(this@MainActivity,arrayOf(Manifest.permission.ACCESS_FINE_LOCATION,Manifest.permission.ACCESS_COARSE_LOCATION),42);message="Izinkan lokasi saat diminta, lalu tekan tombol kirim lokasi lagi."}
+     else scope.launch {
+      locationBusy=true
+      try {
+       val lm=getSystemService(LOCATION_SERVICE) as LocationManager
+       val provider=if(fine)LocationManager.GPS_PROVIDER else LocationManager.NETWORK_PROVIDER
+       val loc=lm.getLastKnownLocation(provider) ?: throw IllegalStateException("Lokasi belum tersedia. Aktifkan lokasi/GPS, buka Maps sebentar, lalu coba lagi.")
+       val user=FirebaseAuth.getInstance().currentUser ?: throw IllegalStateException("Sesi Firebase belum aktif.")
+       val token=user.getIdToken(false).awaitToken()
+       val body=JSONObject().put("deviceId",deviceId).put("latitude",loc.latitude).put("longitude",loc.longitude).put("accuracy",loc.accuracy.toDouble())
+       val result=withContext(Dispatchers.IO){postJson("/location/update",body,token)}
+       message="Lokasi berhasil dibagikan pada ${java.text.DateFormat.getTimeInstance().format(java.util.Date(result.optLong("updatedAt")*1000))}. Tekan lagi untuk memperbarui."
+      }catch(e:Exception){message="Gagal mengirim lokasi: ${e.message ?: "periksa izin dan koneksi"}"}finally{locationBusy=false}
+     }
+    }) { Text(if(locationBusy)"Mengirim lokasi…" else "Bagikan lokasi sekarang") }
+    Text("Lokasi hanya dikirim setelah izin Android diberikan dan tombol ini ditekan. Pembaruan dilakukan manual saat aplikasi dibuka.",style=MaterialTheme.typography.bodySmall)
     if(code.isNotBlank()) Text(code,style=MaterialTheme.typography.displayLarge)
     Text(message)
     Text("ID perangkat lokal: ${deviceId.take(8)}…",style=MaterialTheme.typography.bodySmall)
