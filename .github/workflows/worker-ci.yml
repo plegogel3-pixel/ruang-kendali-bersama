@@ -24,6 +24,6 @@ jobs:
         with:
           node-version: "20"
       - name: Install Worker dependencies
-        run: npm install
+        run: npm install --legacy-peer-deps
       - name: Type-check Worker
         run: npm run typecheck
