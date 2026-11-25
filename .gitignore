@@ -1,0 +1,11 @@
+*.jks
+*.keystore
+local.properties
+**/google-services.json
+.env
+.env.*
+wrangler.toml
+.DS_Store
+.gradle/
+.kotlin/
+build/
